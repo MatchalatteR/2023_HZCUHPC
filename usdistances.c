@@ -9,7 +9,7 @@ double distances[501][3];
 double SumDistance(const int k, const int n, const int dim, double* coord, int* pivots){
     int i;
     // Rebuild coordinates. New coordinate of one point is its distance to each pivot.
-    #pragma omp parallel for
+
     for(i=0; i<n; i++){
         int ki;
         for(ki=0; ki<k; ki++){
