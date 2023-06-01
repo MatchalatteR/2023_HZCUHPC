@@ -3,7 +3,7 @@
 #include<math.h>
 #include<sys/time.h>
 
-double** distances; 
+double distances[501][3];
 
 // Calculate sum of distance while combining different pivots. Complexity : O( n^2 )
 double SumDistance(const int k, const int n, const int dim, double* coord, int* pivots){
@@ -53,49 +53,83 @@ double SumDistance(const int k, const int n, const int dim, double* coord, int* 
 // maxDisSumPivots : the top M pivots combinations
 // minDistanceSum  : the smallest M distance sum
 // minDisSumPivots : the bottom M pivots combinations
-void Combination(int ki, int k, int n, int dim, double* coord, int* pivots, double* maxDistanceSum, int* maxDisSumPivots, double* minDistanceSum, int* minDisSumPivots){
-    // Initialize stack and pivots
-    int stack[k+1];
+void Combination(int ki, const int k, const int n, const int dim, const int M, double* coord, int* pivots,
+                 double* maxDistanceSum, int* maxDisSumPivots, double* minDistanceSum, int* minDisSumPivots){
+    if(ki==k-1){
+        int i;
+        for(i=pivots[ki-1]+1; i<n; i++){
+            pivots[ki] = i;
 
-    int i;
-    for (i=0; i<k; i++) {
-        pivots[i] = i;
+            // Calculate sum of distance while combining different pivots.
+            double distanceSum = SumDistance(k, n, dim, coord, pivots);
+
+            // put data at the end of array
+            maxDistanceSum[M] = distanceSum;
+            minDistanceSum[M] = distanceSum;
+            int kj;
+            for(kj=0; kj<k; kj++){
+                maxDisSumPivots[M*k + kj] = pivots[kj];
+            }
+            for(kj=0; kj<k; kj++){
+                minDisSumPivots[M*k + kj] = pivots[kj];
+            }
+            // sort
+            int a;
+            for(a=M; a>0; a--){
+                if(maxDistanceSum[a] > maxDistanceSum[a-1]){
+                    double temp = maxDistanceSum[a];
+                    maxDistanceSum[a] = maxDistanceSum[a-1];
+                    maxDistanceSum[a-1] = temp;
+                    int kj;
+                    for(kj=0; kj<k; kj++){
+                        int temp = maxDisSumPivots[a*k + kj];
+                        maxDisSumPivots[a*k + kj] = maxDisSumPivots[(a-1)*k + kj];
+                        maxDisSumPivots[(a-1)*k + kj] = temp;
+                    }
+                }
+            }
+            for(a=M; a>0; a--){
+                if(minDistanceSum[a] < minDistanceSum[a-1]){
+                    double temp = minDistanceSum[a];
+                    minDistanceSum[a] = minDistanceSum[a-1];
+                    minDistanceSum[a-1] = temp;
+                    int kj;
+                    for(kj=0; kj<k; kj++){
+                        int temp = minDisSumPivots[a*k + kj];
+                        minDisSumPivots[a*k + kj] = minDisSumPivots[(a-1)*k + kj];
+                        minDisSumPivots[(a-1)*k + kj] = temp;
+                    }
+                }
+            }
+        }
+        return;
     }
-    stack[0] = 0;
-    int top = 0;
 
-    while (top >= 0) {
-        int ki = stack[top];
-        top--;
+    // Recursively call Combination() to combine pivots
+    int i;
+    for(i=pivots[ki-1]+1; i<n; i++) {
+        pivots[ki] = i;
+        Combination(ki+1, k, n, dim, M, coord, pivots, maxDistanceSum, maxDisSumPivots, minDistanceSum, minDisSumPivots);
 
-        if (ki == k-1) {
-            int j;
-            for (j=pivots[ki-1]+1; j<n; j++) {
-                pivots[ki] = j;
-                double distanceSum = SumDistance(k, n, dim, coord, pivots);
-                maxDistanceSum[0] = fmax(maxDistanceSum[0], distanceSum);
-                minDistanceSum[0] = fmin(minDistanceSum[0], distanceSum);
-                int kj;
-                for (kj=0; kj<k; kj++) {
-                    maxDisSumPivots[kj] = pivots[kj];
-                    minDisSumPivots[kj] = pivots[kj];
-                }
-                for (kj=0; kj<k; kj++) {
-                    maxDisSumPivots[kj] = pivots[kj];
-                    minDisSumPivots[kj] = pivots[kj];
-                }
+        /** Iteration Log : pivots computed, best pivots, max distance sum, min distance sum pivots, min distance sum
+        *** You can delete the logging code. **/
+        if(ki==k-2){
+            int kj;
+            for(kj=0; kj<k; kj++){
+                printf("%d ", pivots[kj]);
             }
-        } else {
-            int j;
-            for (j=pivots[ki-1]+1; j<n; j++) {
-                pivots[ki] = j;
-                top++;
-                stack[top] = ki+1;
+            putchar('\t');
+            for(kj=0; kj<k; kj++){
+                printf("%d ", maxDisSumPivots[kj]);
             }
+            printf("%lf\t", maxDistanceSum[0]);
+            for(kj=0; kj<k; kj++){
+                printf("%d ", minDisSumPivots[kj]);
+            }
+            printf("%lf\n", minDistanceSum[0]);
         }
     }
 }
-
 int main(int argc, char* argv[]){
     // filename : input file namespace
     char* filename = (char*)"uniformvector-2dim-5h.txt";
@@ -131,6 +165,7 @@ int main(int argc, char* argv[]){
 
     // Read Data
     double* coord = (double*)malloc(sizeof(double) * dim * n);
+
     int i;
     for(i=0; i<n; i++){
         int j;
@@ -171,14 +206,11 @@ int main(int argc, char* argv[]){
     int* temp = (int*)malloc(sizeof(int) * (k+1));
     temp[0] = -1;
 
-distances = (double **) malloc(n * sizeof(double *));
-    for(int i = 0; i < n; i++)
-        distances[i] = (double *) malloc(k * sizeof(double));
 
 
 
     // Main loop. Combine different pivots with recursive function and evaluate them. Complexity : O( n^(k+2) )
-    Combination(0, k, n, dim, coord, &temp[1], maxDistanceSum, maxDisSumPivots, minDistanceSum, minDisSumPivots);
+    Combination(0, k, n, dim, M, coord, &temp[1], maxDistanceSum, maxDisSumPivots, minDistanceSum, minDisSumPivots);
 
     // End timing
     struct timeval end;
@@ -216,8 +248,6 @@ distances = (double **) malloc(n * sizeof(double *));
     }
     printf("%lf\n", minDistanceSum[0]);
 
-        for(int i = 0; i < n; i++)
-        free(distances[i]);
-    free(distances);
+
     return 0;
 }
