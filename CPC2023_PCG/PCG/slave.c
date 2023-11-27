@@ -1,6 +1,6 @@
 #include <slave.h>
 #include "pcg_def.h"
-
+#include <simd.h>
 #include <crts.h>
 
 typedef struct{
@@ -35,6 +35,7 @@ void slave_example(Para* para){
 	}else{
 		addr = CRTS_tid * len + rest;
 	}
+	//if(len>dataBufferSize) printf("Wrong!");
 	//接收数组数据
 	CRTS_dma_iget(&p, slavePara.p + addr, len * sizeof(double), &DMARply);
 	CRTS_dma_iget(&z, slavePara.z + addr, len * sizeof(double), &DMARply);
@@ -42,12 +43,28 @@ void slave_example(Para* para){
 	CRTS_dma_wait_value(&DMARply, DMARplyCount);
 			
 	//计算
-	int i = 0;
-	for(; i < len; i++){
-		p[i] = z[i] + beta * p[i];
-	}
+	// int i = 0;
+	// for(; i < len; i++){
+	// 	p[i] = z[i] + beta * p[i];
+	// }
+	//simd calculate
+    int i=0;
+    int simd_len = (len/8)*8;
+    doublev8 p64,z64,beta64;
+    beta64 = beta;
+    for(i=0;i<simd_len;i+=8){
+		simd_load(p64,&p[i]);
+		simd_load(z64,&z[i]);
+		// p64 = simd_vmas(beta64,p64,z64);
+		p64 = simd_vmuld(p64,beta64);
+		p64 = simd_vaddd(z64,p64);
+		simd_store(p64,&p[i]);
+    }
+    for(i=simd_len;i<len;i++){
+        p[i] = z[i] + beta * p[i];
+    }
 	//传回计算结果
-	CRTS_dma_iput(slavePara.p+addr, &p, len * sizeof(double), &DMARply);
+	CRTS_dma_iput(slavePara.p + addr, &p, len * sizeof(double), &DMARply);
 	DMARplyCount++;
 	CRTS_dma_wait_value(&DMARply, DMARplyCount);
 }
